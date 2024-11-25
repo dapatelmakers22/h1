@@ -2,256 +2,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice with Web Data Store</title>
+    <title>3D Invoice</title>
     <style>
-        /* Print Styles */
-        @media print {
-            body * {
-                visibility: hidden;
-            }
-            #printableInvoice, #printableInvoice * {
-                visibility: visible;
-            }
-            #printableInvoice {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-            }
-        }
-
-        /* Non-Print Styles */
         body {
-            background-color: #6A0DAD;
+            margin: 0;
+            overflow: hidden; /* Removes scrollbars for full immersion */
             font-family: Arial, sans-serif;
         }
-
-        input {
-            background-color: #b5d8e1;
+        #ui-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-
-        th, td {
+        input, button {
+            margin: 5px 0;
             padding: 8px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-
-        th {
-            background-color: #00a2ff;
-        }
-
-        button {
-            padding: 8px 16px;
-            background-color: #c60000;
-            color: white;
-            border: none;
-            cursor: pointer;
             border-radius: 5px;
-            transition: all 0.3s ease-in-out;
+            border: 1px solid #ccc;
         }
-
+        button {
+            background-color: #007BFF;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
         button:hover {
-            background-color: #a00000;
+            background-color: #0056b3;
+        }
+        canvas {
+            display: block;
         }
     </style>
 </head>
 <body>
-    <h1 align="center"><font face="Segoe Print"><b>INVOICE</b></font></h1>
-    <form id="billingForm" onsubmit="createInvoice(event)">
-        <hr>
-        <table>
-            <tr>        
-                <td><label for="sellerName">Seller Name:</label></td>
-                <td><input type="text" id="sellerName" required><br><br></td>
-            </tr>
-            <tr>
-                <td><label for="buyerName">Buyer Name:</label></td>
-                <td><input type="text" id="buyerName" required><br><br></td>
-            </tr>
-            <tr>
-                <td><label for="buyerMobile">Buyer Mobile Number:</label></td>
-                <td><input type="tel" id="buyerMobile" pattern="[0-9]{10}" required><br><br></td>
-            </tr>
-        </table>
-
-        <table id="invoiceTable">
-            <thead>
-                <tr>
-                    <th>Item Name</th>
-                    <th>Quantity</th>
-                    <th>Price</th>
-                    <th>Total</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td><input type="text" name="itemName[]" required></td>
-                    <td><input type="number" name="quantity[]" min="1" required onchange="calculateItemTotal(this)"></td>
-                    <td><input type="number" name="price[]" min="0" step="0.01" required onchange="calculateItemTotal(this)"></td>
-                    <td><input type="text" name="total[]" readonly></td>
-                    <td><button type="button" onclick="removeItem(this)">Remove</button></td>
-                </tr>
-            </tbody>
-        </table>
-
-        <button type="button" onclick="addItem()">Add Item</button><br><br>
-        <label for="grandTotal">Grand Total:</label>
-        <input type="text" id="grandTotal" readonly><br><br>
-        <button type="submit">Create and Save Invoice</button>
-    </form>
-
-    <h2>Saved Invoices</h2>
-    <div id="savedInvoices"></div>
-
-    <!-- Printable Invoice Layout -->
-    <div id="printableInvoice" style="display: none;" width="200%">
-        <h1>INVOICE</h1>
-        <p><b>Seller Name:</b> <span id="printSellerName"></span></p>
-        <p><b>Buyer Name:</b> <span id="printBuyerName"></span></p>
-        <p><b>Buyer Mobile:</b> <span id="printBuyerMobile"></span></p>
-        <p><b>Date:</b> <span id="printDate"></span></p>
-        <table>
-            <thead>
-                <tr>
-                    <th>Item Name</th>
-                    <th>Quantity</th>
-                    <th>Price</th>
-                    <th>Total</th>
-                </tr>
-            </thead>
-            <tbody id="printItems"></tbody>
-        </table>
-        <p><b>Grand Total: Rs.<span id="printGrandTotal"></span></b></p>
+    <div id="ui-container">
+        <h2>Invoice Details</h2>
+        <label for="sellerName">Seller Name:</label>
+        <input type="text" id="sellerName" placeholder="Enter Seller Name" required><br>
+        <label for="buyerName">Buyer Name:</label>
+        <input type="text" id="buyerName" placeholder="Enter Buyer Name" required><br>
+        <label for="buyerMobile">Buyer Mobile:</label>
+        <input type="text" id="buyerMobile" placeholder="Enter Mobile Number" pattern="[0-9]{10}" required><br>
+        <button onclick="generate3DInvoice()">Generate 3D Invoice</button>
     </div>
 
+    <!-- Include Three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
     <script>
-        function addItem() {
-            const tableBody = document.querySelector('#invoiceTable tbody');
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td><input type="text" name="itemName[]" required></td>
-                <td><input type="number" name="quantity[]" min="1" required onchange="calculateItemTotal(this)"></td>
-                <td><input type="number" name="price[]" min="0" step="0.01" required onchange="calculateItemTotal(this)"></td>
-                <td><input type="text" name="total[]" readonly></td>
-                <td><button type="button" onclick="removeItem(this)">Remove</button></td>
-            `;
-            tableBody.appendChild(row);
+        let scene, camera, renderer;
+
+        function init3D() {
+            // Create a scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x6A0DAD);
+
+            // Create a camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+
+            // Create a renderer
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Add ambient light
+            const light = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(light);
+
+            // Render 3D table
+            render3DTable();
+
+            // Animation loop
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+            animate();
         }
 
-        function calculateItemTotal(input) {
-            const row = input.closest('tr');
-            const quantity = parseFloat(row.querySelector('[name="quantity[]"]').value) || 0;
-            const price = parseFloat(row.querySelector('[name="price[]"]').value) || 0;
-            row.querySelector('[name="total[]"]').value = (quantity * price).toFixed(2);
-            calculateGrandTotal();
+        function render3DTable() {
+            // Create a table-like 3D object
+            const geometry = new THREE.BoxGeometry(3, 1, 0.1);
+            const material = new THREE.MeshStandardMaterial({ color: 0x00a2ff });
+            const table = new THREE.Mesh(geometry, material);
+
+            // Create grid on the table
+            const gridHelper = new THREE.GridHelper(3, 4, 0xffffff, 0x000000);
+            table.add(gridHelper);
+
+            scene.add(table);
+
+            // Add text dynamically (e.g., invoice details)
+            add3DText("Invoice Table", { x: -1, y: 0.5, z: 0.1 });
         }
 
-        function calculateGrandTotal() {
-            const totals = document.querySelectorAll('[name="total[]"]');
-            let grandTotal = 0;
-            totals.forEach(total => grandTotal += parseFloat(total.value) || 0);
-            document.getElementById('grandTotal').value = grandTotal.toFixed(2);
+        function add3DText(text, position) {
+            const loader = new THREE.FontLoader();
+            loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function (font) {
+                const textGeometry = new THREE.TextGeometry(text, {
+                    font: font,
+                    size: 0.2,
+                    height: 0.05,
+                });
+
+                const textMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+                const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+
+                textMesh.position.set(position.x, position.y, position.z);
+                scene.add(textMesh);
+            });
         }
 
-        function removeItem(button) {
-            button.closest('tr').remove();
-            calculateGrandTotal();
-        }
-
-        function createInvoice(event) {
-            event.preventDefault();
-
+        function generate3DInvoice() {
             const sellerName = document.getElementById('sellerName').value;
             const buyerName = document.getElementById('buyerName').value;
             const buyerMobile = document.getElementById('buyerMobile').value;
 
-            const items = Array.from(document.querySelectorAll('#invoiceTable tbody tr')).map(row => ({
-                name: row.querySelector('[name="itemName[]"]').value,
-                quantity: row.querySelector('[name="quantity[]"]').value,
-                price: row.querySelector('[name="price[]"]').value,
-                total: row.querySelector('[name="total[]"]').value,
-            }));
+            if (!sellerName || !buyerName || !buyerMobile) {
+                alert("Please fill in all fields!");
+                return;
+            }
 
-            const grandTotal = document.getElementById('grandTotal').value;
-
-            const invoice = {
-                sellerName,
-                buyerName,
-                buyerMobile,
-                items,
-                grandTotal,
-                date: new Date().toLocaleString(),
-            };
-
-            saveInvoice(invoice);
-            displayInvoices();
-            alert('Invoice saved successfully!');
-            document.getElementById('billingForm').reset();
-            document.getElementById('grandTotal').value = '';
+            add3DText(`Seller: ${sellerName}`, { x: -1.5, y: 0.3, z: 0 });
+            add3DText(`Buyer: ${buyerName}`, { x: -1.5, y: 0, z: 0 });
+            add3DText(`Mobile: ${buyerMobile}`, { x: -1.5, y: -0.3, z: 0 });
         }
 
-        function saveInvoice(invoice) {
-            const invoices = JSON.parse(localStorage.getItem('invoices')) || [];
-            invoices.push(invoice);
-            localStorage.setItem('invoices', JSON.stringify(invoices));
-        }
-
-        function displayInvoices() {
-            const invoices = JSON.parse(localStorage.getItem('invoices')) || [];
-            const savedInvoices = document.getElementById('savedInvoices');
-            savedInvoices.innerHTML = invoices.map((invoice, index) => `
-                <div>
-                    <p><b>Seller:</b> ${invoice.sellerName}, <b>Buyer:</b> ${invoice.buyerName}, <b>Date:</b> ${invoice.date}</p>
-                    <p><b>Grand Total:</b> Rs.${invoice.grandTotal}</p>
-                    <button onclick="deleteInvoice(${index})">Delete</button>
-                    <button onclick="printInvoice(${index})">Print</button>
-                </div>
-            `).join('');
-        }
-
-        function deleteInvoice(index) {
-            const invoices = JSON.parse(localStorage.getItem('invoices')) || [];
-            invoices.splice(index, 1);
-            localStorage.setItem('invoices', JSON.stringify(invoices));
-            displayInvoices();
-        }
-
-        function printInvoice(index) {
-            const invoices = JSON.parse(localStorage.getItem('invoices')) || [];
-            const invoice = invoices[index];
-
-            document.getElementById('printSellerName').textContent = invoice.sellerName;
-            document.getElementById('printBuyerName').textContent = invoice.buyerName;
-            document.getElementById('printBuyerMobile').textContent = invoice.buyerMobile;
-            document.getElementById('printDate').textContent = invoice.date;
-
-            const printItems = document.getElementById('printItems');
-            printItems.innerHTML = invoice.items.map(item => `
-                <tr>
-                    <td>${item.name}</td>
-                    <td>${item.quantity}</td>
-                    <td>${item.price}</td>
-                    <td>${item.total}</td>
-                </tr>
-            `).join('');
-
-            document.getElementById('printGrandTotal').textContent = invoice.grandTotal;
-
-            const printableInvoice = document.getElementById('printableInvoice');
-            printableInvoice.style.display = 'block';
-            window.print();
-            printableInvoice.style.display = 'none';
-        }
-
-        window.onload = displayInvoices;
+        window.onload = init3D;
     </script>
 </body>
 </html>
- 
